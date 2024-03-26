@@ -1,9 +1,15 @@
 # Function to replace missing values with median date
 import datetime
 import math
+import warnings
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
+pd.options.mode.chained_assignment = None
 
 
 def replace_with_median(df, column_name):
@@ -120,9 +126,83 @@ def calculate_measuring_date_and_create_long_format(df, t_date_mapping, t_date_v
     return res
 
 
+def plot_sars_igg_with_events(df, results_path, bl_s, show_plot=False):
+    """
+    Plots SARS-IgG values over time with markers for vaccinations and infections.
+
+    Parameters:
+    - df: A pandas DataFrame with columns 'date', 'vaccination', 'infection', and 'SARS-IgG'.
+    """
+
+    # Convert 'date' column to datetime if it's not already
+    df.loc[:, 'date'] = pd.to_datetime(df['date'])
+
+    # Setting the plot size
+    plt.figure(figsize=(14, 7))
+
+    # Plotting SARS-IgG values over time
+    ax = sns.lineplot(data=df, x='date', y='SARS-IgG', marker='o', label='SARS-IgG', linestyle='-', color='blue')
+
+    # just for plotting reasons so the markers know their "height" on y-axis
+    df.loc[:, 'SARS-IgG'] = df.loc[:, 'SARS-IgG'].fillna(
+        (df['SARS-IgG'].fillna(method='ffill') + df['SARS-IgG'].fillna(method='bfill')) / 2)
+
+    # Highlighting vaccination dates
+    vaccination_dates = df[df['vaccination'] == 1]
+    plt.scatter(vaccination_dates['date'], vaccination_dates['SARS-IgG'], color='green', marker='^', s=100,
+                label='Vaccination')
+
+    # Highlighting infection dates
+    infection_dates = df[df['infection'] == 1]
+    plt.scatter(infection_dates['date'], infection_dates['SARS-IgG'], color='red', marker='x', s=100, label='Infection')
+
+    # Enhancing the plot
+    plt.xlabel('Date')
+    plt.ylabel('SARS-IgG Value')
+    plt.title(
+        f"SARS-IgG Values Over Time With Vaccination and Infection Events \n Age = {bl_s.Alter.values[0]}, Sex = {'male' if bl_s.Geschlecht.values[0] == 0 else 'female'}, ID={bl_s.ID.values[0]}")
+    plt.legend()
+    plt.grid(True)
+
+    # Custom x-ticks for vaccination and infection dates
+
+    df.loc[:, 'kind'] = pd.Series(dtype='object')
+    df.loc[df.index[df['vaccination'] == 1].tolist(), 'kind'] = 'vaccination'
+    df.loc[df.index[df['infection'] == 1].tolist(), 'kind'] = 'infection'
+    filt = (df['infection'] == 0) & (df['vaccination'] == 0)
+    df.loc[filt, 'kind'] = 'measurement'
+
+    event_dates = df['date']
+    ax.set_xticks(event_dates)
+    ax.set_xticklabels(event_dates.dt.strftime('%Y-%m-%d'))
+
+    # Color x-tick labels based on the event type
+    for tick_label, kind in zip(ax.get_xticklabels(), df['kind']):
+        if kind == 'infection':
+            tick_label.set_color('red')
+        elif kind == 'vaccination':
+            tick_label.set_color('green')
+        else:
+            pass
+
+    # Improving the x-axis date formatting
+    plt.gcf().autofmt_xdate(rotation=90, ha='center')
+
+    id = df.ID.unique().tolist()[0]
+    plt.savefig(f'{results_path}/{id}.svg')
+
+    if show_plot:
+        plt.show()
+
+    plt.close()
+
+    return None
+
+
 def main():
     global cb
 
+    """ Test calculate_measuring_date_and_create_long_format
     abs_path_to_codebook = 'G://My Drive//Forschung//Mitarbeiter/Allgaier//23-12-06_Immun-ML//01_Codebook//Codebook.xlsx'
     abs_path_to_df = 'G://My Drive//Forschung//Mitarbeiter/Allgaier//23-12-06_Immun-ML//04_Data//00_raw//2024.03.21_Mastertabelle.xlsx'
 
@@ -137,8 +217,26 @@ def main():
 
     res = calculate_measuring_date_and_create_long_format(df, t_date_mapping, t_date_vaccs, patient_id,
                                                           measurement_column)
-
+                                                          
     print(res.shape)
+    """
+
+    # test plot_sars_igg_with_events
+    df = pd.read_excel(
+        'G://My Drive//Forschung//Mitarbeiter//Allgaier//23-12-06_Immun-ML//04_Data//01_processed//2024.03.21_Mastertabelle_long.xlsx',
+        parse_dates=['date'], index_col='Unnamed: 0', dtype={'vaccination': "Int64", 'infection': 'Int64'})
+    df.rename(columns={'patient_id': 'ID'}, inplace=True)
+
+    bl = pd.read_excel(
+        'G://My Drive//Forschung//Mitarbeiter//Allgaier//23-12-06_Immun-ML//04_Data//00_raw//2024.03.21_Mastertabelle.xlsx')
+    bl_sub = bl[['ID', 'Alter', 'Dialyse', 'Geschlecht']]
+
+    # loop over all patients
+    results_path = '../../results/rq1/sars-igg-plots-by-patient'
+    for id in df.ID.unique()[:2]:
+        bl_s = bl_sub[bl_sub['ID'] == id]
+        df_s = df[df['ID'] == id]
+        plot_sars_igg_with_events(df_s, results_path, bl_s)
 
 
 if __name__ == '__main__':
