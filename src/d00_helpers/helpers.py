@@ -199,6 +199,45 @@ def plot_sars_igg_with_events(df, results_path, bl_s, show_plot=False):
     return None
 
 
+def calculate_days_since_last_event(df, date_col='date', event_col='vaccination'):
+    """
+    Calculates the days since the last event for each date in the DataFrame.
+
+    Parameters:
+    - df: DataFrame containing the data.
+    - date_col: The name of the column containing the date information.
+    - vaccinated_col: The name of the binary column indicating whether a event happened (1 for yes, 0 for no).
+
+    Returns:
+    - DataFrame with an additional column 'days_since_last_event' showing the days since the last event.
+    """
+    # Ensure the DataFrame is sorted by date
+    df_sorted = df.sort_values(by=date_col).copy()
+
+    # Initialize the last event date
+    df_sorted[f'last_{event_col}_date'] = pd.NaT  # Use NaT for consistency with datetime types
+
+    # Update 'last_event_date' for vaccinated entries
+    last_event_date = pd.NaT
+    for index, row in df_sorted.iterrows():
+        # Check if the row indicates event happened, explicitly handling NA values
+        if not pd.isna(row[event_col]) and row[event_col] == 1:
+            last_event_date = row[date_col]
+        df_sorted.at[index, f'last_{event_col}_date'] = last_event_date
+
+    # Calculate the days since the last event
+    df_sorted[f'days_since_last_{event_col}'] = (df_sorted[date_col] - df_sorted[f'last_{event_col}_date']).dt.days
+
+    # Handle dates before the first event
+    df_sorted[f'days_since_last_{event_col}'] = df_sorted[f'days_since_last_{event_col}'].fillna(-1).astype(int)
+    df_sorted.loc[df_sorted[f'days_since_last_{event_col}'] < 0, f'days_since_last_{event_col}'] = -1
+
+    # Drop the temporary column
+    df_sorted.drop(columns=[f'last_{event_col}_date'], inplace=True)
+
+    return df_sorted
+
+
 def main():
     global cb
 
