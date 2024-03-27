@@ -237,6 +237,54 @@ def calculate_days_since_last_event(df, date_col='date', event_col='vaccination'
 
     return df_sorted
 
+def calc_average_sarsigg_increase(sub_df, infection_date):
+    # Ensure 'date' column is in datetime format
+    sub_df['date'] = pd.to_datetime(sub_df['date'])
+
+    # Find the index for the infection date
+    infection_idx = sub_df[sub_df['date'] == pd.to_datetime(infection_date)].index
+    infection_idx = infection_idx[0]
+
+    if sub_df.index.get_loc(infection_idx)==0 or infection_idx == sub_df.index[-1]:
+        return None  # Infectiondate is last or first entry of sub_dataframe
+
+
+    # Initialize variables
+    prev_sars_igg_value = None
+    next_sars_igg_value = None
+    prev_date = None
+    next_date = None
+
+    # Look backward for the last SARS-IgG measurement before the infection
+    for i in range(infection_idx, -1, -1):
+        if not pd.isna(sub_df.loc[i, 'SARS-IgG']):
+            prev_sars_igg_value = sub_df.loc[i, 'SARS-IgG']
+            prev_date = sub_df.loc[i, 'date']
+            break
+
+    # Look forward for the first SARS-IgG measurement after the infection without vaccination in between
+    idx = infection_idx
+    while not np.isnan(sub_df.loc[idx+1, 'SARS-IgG']):
+        if sub_df.loc[idx+1, 'vaccination'] == 1:
+            return None  # Vaccination occurred after infection before next SARS-IgG measurement
+
+        if not pd.isna(sub_df.loc[idx+1, 'SARS-IgG']):
+            next_sars_igg_value = sub_df.loc[idx+1, 'SARS-IgG']
+            next_date = sub_df.loc[idx+1, 'date']
+            break
+        idx += 1
+
+    # Ensure we have all needed data
+    if prev_sars_igg_value is None or next_sars_igg_value is None:
+        return None  # Required measurements not found
+
+    # Calculate the differences
+    days_diff = (next_date - prev_date).days
+    sars_diff = next_sars_igg_value - prev_sars_igg_value
+    slope = sars_diff / days_diff if days_diff > 0 else None
+
+    return {'sars_diff': sars_diff, 'slope': slope}
+
 
 def main():
     global cb
@@ -270,13 +318,20 @@ def main():
         'G://My Drive//Forschung//Mitarbeiter//Allgaier//23-12-06_Immun-ML//04_Data//00_raw//2024.03.21_Mastertabelle.xlsx')
     bl_sub = bl[['ID', 'Alter', 'Dialyse', 'Geschlecht']]
 
+    """
     # loop over all patients
     results_path = '../../results/rq1/sars-igg-plots-by-patient'
     for id in df.ID.unique()[:2]:
         bl_s = bl_sub[bl_sub['ID'] == id]
         df_s = df[df['ID'] == id]
         plot_sars_igg_with_events(df_s, results_path, bl_s)
+    """
+    sub_df = df[df['ID']=='HD75']
+    # timepoint where infection happened
+    infection_dates = list(sub_df[sub_df['infection'] == 1]['date'])
+    infection_date = infection_dates[0]
 
+    res_dic = calc_average_sarsigg_increase(sub_df, infection_date)
 
 if __name__ == '__main__':
     main()
