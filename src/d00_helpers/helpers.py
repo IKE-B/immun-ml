@@ -25,6 +25,22 @@ def replace_with_median(df, column_name):
 
     return df
 
+def find_future_measurement_date(group):
+    future_dates = []  # List to store the result for each row
+    for i, row in group.iterrows():
+        # Find dates between 350 to 370 days ahead
+        min_date = row['date'] + pd.Timedelta(days=350)
+        max_date = row['date'] + pd.Timedelta(days=370)
+        future_measurements = group[(group['date'] >= min_date) & (group['date'] <= max_date)]
+
+        # Check if there's any such measurement and act accordingly
+        if not future_measurements.empty:
+            future_dates.append(future_measurements.iloc[0]['date'].strftime('%Y-%m-%d'))
+        else:
+            future_dates.append(pd.NA)
+
+    return pd.Series(future_dates, index=group.index)
+
 
 def create_T_date_mapping(abs_path_to_codebook):
     cb = pd.read_excel(abs_path_to_codebook, sheet_name='TimePoints').iloc[:25]
@@ -126,7 +142,7 @@ def calculate_measuring_date_and_create_long_format(df, t_date_mapping, t_date_v
     return res
 
 
-def plot_sars_igg_with_events(df, results_path, bl_s, show_plot=False):
+def plot_sars_igg_with_events(df, results_path, bl_s, show_plot=False, save_fig=False):
     """
     Plots SARS-IgG values over time with markers for vaccinations and infections.
 
@@ -189,7 +205,8 @@ def plot_sars_igg_with_events(df, results_path, bl_s, show_plot=False):
     plt.gcf().autofmt_xdate(rotation=90, ha='center')
 
     id = df.ID.unique().tolist()[0]
-    plt.savefig(f'{results_path}/{id}.svg')
+    if save_fig:
+        plt.savefig(f'{results_path}/{id}.svg')
 
     if show_plot:
         plt.show()
