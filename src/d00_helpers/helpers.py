@@ -126,19 +126,16 @@ def calculate_measuring_date_and_create_long_format(df, t_date_mapping, t_date_v
                              pd.DataFrame([res_dic]).dropna(axis='columns', how='all')],
                             ignore_index=True)
 
-    if infection_dates:
-        res['infection'] = res['infection'].fillna(0)
-    else:
-        res['infection'] = None
-        res['infection'] = res['infection'].fillna(0)
-
-    if vaccination_dates:
-        res['vaccination'] = res['vaccination'].fillna(0)
-
     try:
-        res = res.sort_values(by='date').groupby('date').agg('last').reset_index()
+        res = res.sort_values(by='date').groupby('date').agg('first').reset_index()
+
     except:
         print('Patient without any date: ', patient_id)
+
+
+
+
+
     return res
 
 
