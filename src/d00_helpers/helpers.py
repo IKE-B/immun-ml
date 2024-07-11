@@ -252,6 +252,28 @@ def calculate_days_since_last_event(df, date_col='date', event_col='vaccination'
     return df_sorted
 
 def calc_average_sarsigg_increase(sub_df, infection_date):
+    """
+    Calculate the average daily increase in SARS-IgG levels surrounding a specified infection date.
+
+    This function calculates the increase in SARS-IgG levels between the last measurement before
+    a specified infection date and the first measurement after the infection date, provided there
+    is no vaccination in between. The daily increase rate (slope) is also computed.
+
+    Parameters:
+    sub_df (pd.DataFrame): A pandas DataFrame containing 'date', 'SARS-IgG', and 'vaccination' columns.
+                           - 'date' column should be in a format convertible to datetime.
+                           - 'SARS-IgG' column contains measurements of SARS-IgG levels.
+                           - 'vaccination' column indicates whether a vaccination occurred (1 for yes, 0 for no).
+    infection_date (str or datetime-like): The date of infection to analyze.
+
+    Returns:
+    dict or None: A dictionary containing 'sars_diff', 'slope', and 'days_diff' if the calculation is possible.
+                  - 'sars_diff' (float): The difference in SARS-IgG levels.
+                  - 'slope' (float): The average daily increase in SARS-IgG levels.
+                  - 'days_diff' (int): The number of days between the two measurements.
+                  Returns None if required measurements are not found or if a vaccination occurs between the infection
+                  date and the next SARS-IgG measurement.
+    """
     # Ensure 'date' column is in datetime format
     sub_df['date'] = pd.to_datetime(sub_df['date'])
 
@@ -297,7 +319,7 @@ def calc_average_sarsigg_increase(sub_df, infection_date):
     sars_diff = next_sars_igg_value - prev_sars_igg_value
     slope = sars_diff / days_diff if days_diff > 0 else None
 
-    return {'sars_diff': sars_diff, 'slope': slope}
+    return {'sars_diff': sars_diff, 'slope': slope, 'days_diff': days_diff}
 
 
 def main():
